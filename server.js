@@ -34,20 +34,56 @@ client
 // Endpoint to create a new order and send a push notification
 app.post("/api/orders", async (req, res) => {
   console.log("Request received:", req.body);
-
-  const { name, contact, eventDescription, boxesRequired } = req.body;
-
-  if (!name || !contact || !eventDescription || !boxesRequired) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
+  const { cartItems, deliveryDetails, totalPrice, orderDate } = req.body;
+  const { customerName, mobileNumber, city, deliveryPoint, deliveryDate } =
+    deliveryDetails;
+  // if (!name || !contact || !eventDescription || !boxesRequired) {
+  //   return res.status(400).json({ message: "All fields are required" });
+  // }
 
   try {
-    // Insert order into the database
-    const result = await client.query(
-      "INSERT INTO orders (name, contact, event_description, boxes_required) VALUES ($1, $2, $3, $4) RETURNING *",
-      [name, contact, eventDescription, boxesRequired]
+    // Begin transaction
+    await client.query("BEGIN");
+
+    // Check if the customer already exists
+    const customerResult = await client.query(
+      "SELECT customer_id FROM customers WHERE mobile_number = $1",
+      [mobileNumber]
     );
-    console.log("Order successfully inserted:", result.rows[0]);
+
+    let customerId;
+    if (customerResult.rows.length > 0) {
+      // Customer already exists, get the customer_id
+      customerId = customerResult.rows[0].customer_id;
+    } else {
+      // Insert new customer
+      const newCustomerResult = await client.query(
+        "INSERT INTO customers (name, mobile_number) VALUES ($1, $2) RETURNING customer_id",
+        [customerName, mobileNumber]
+      );
+      customerId = newCustomerResult.rows[0].customer_id;
+    }
+
+    // Insert order details
+    const orderResult = await client.query(
+      `
+      INSERT INTO orders (customer_id, order_date, delivery_date, city, delivery_point, total_price, cart_items)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+      `,
+      [
+        customerId,
+        orderDate,
+        deliveryDate,
+        city,
+        deliveryPoint,
+        totalPrice,
+        JSON.stringify(cartItems)
+      ]
+    );
+    console.log("Order successfully inserted:", orderResult.rows[0]);
+
+    // Commit transaction
+    await client.query("COMMIT");
 
     // Fetch seller's Expo Push Token from the database
     const tokenResult = await client.query(
@@ -63,14 +99,14 @@ app.post("/api/orders", async (req, res) => {
         order: result.rows[0],
       });
     }
-//const sellerExpoPushToken = "ExponentPushToken[zKC2vKOvLA_1SsCGrDhxL3]"
+    //const sellerExpoPushToken = "ExponentPushToken[zKC2vKOvLA_1SsCGrDhxL3]"
     // Send push notification to the seller via Expo Push Notification API
     const message = {
       to: sellerExpoPushToken, // Expo push token of the seller
       sound: "default",
       title: "New Order Received",
-      body: `${name} ordered ${boxesRequired} boxes for ${eventDescription}.`,
-      data: { order: result.rows[0] },
+      body: `${customerName} placed an order please check the order.`,
+      data: { order: orderResult.rows[0] },
     };
 
     // Send the push notification using Expo Push API
@@ -90,15 +126,17 @@ app.post("/api/orders", async (req, res) => {
       console.log("Successfully sent notification to seller.");
     }
 
-    res
-      .status(201)
-      .json({ message: "Order placed successfully", order: result.rows[0] });
-  } catch (err) {
-    console.error("Error placing order:", err);
-    res.status(500).json({ message: "Failed to place order" });
+    res.status(201).json({
+      message: "Order placed successfully.",
+      order: orderResult.rows[0],
+    });
+  } catch (error) {
+    // Rollback transaction in case of error
+    await client.query("ROLLBACK");
+    console.error("Error saving order:", error);
+    res.status(500).json({ message: "Error saving order." });
   }
 });
-
 // Endpoint to save FCM token
 app.post("/api/save-token", async (req, res) => {
   const { fcmToken } = req.body;
@@ -117,6 +155,40 @@ app.post("/api/save-token", async (req, res) => {
   } catch (err) {
     console.error("Error saving FCM token:", err);
     res.status(500).json({ message: "Failed to save FCM token" });
+  }
+});
+
+// Endpoint to get all orders
+app.get("/api/get-all-orders", async (req, res) => {
+  console.log("Request received: Get all orders",req);
+  try {
+    const query = `
+    SELECT 
+    o.order_id,
+    o.customer_id,
+    o.order_date,
+    o.delivery_date,
+    o.city,
+    o.delivery_point,
+    o.total_price,
+    o.cart_items,
+    c.name,
+    c.mobile_number
+    FROM
+    orders o
+     INNER JOIN 
+     customers c
+     ON 
+     o.customer_id = c.customer_id;
+    `;
+    const result = await client.query(query);
+    console.log("Orders fetched successfully:", result.rows);
+    res.setHeader("Cache-Control", "no-store"); // Disable caching
+    console.log(res.getHeaders());
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+    res.status(500).json({ message: "Error fetching orders" });
   }
 });
 
