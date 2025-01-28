@@ -15,11 +15,14 @@ app.use(bodyParser.json());
 
 // PostgreSQL Client Setup
 const client = new Client({
-  host: "localhost",
+  host: "maruthi-sweets-db-instance.cbs6smg2gtgw.ap-south-1.rds.amazonaws.com",
   port: 5432,
-  user: "postgres",
-  password: "postgres",
-  database: "maruthi-sweets",
+  user: "charan",
+  password: "MARUTHIsweets#01",
+  database: "maruthi_sweets_db",
+  ssl: {
+    rejectUnauthorized: false, // Accept self-signed certificates
+  },
 });
 
 // Connect to PostgreSQL
