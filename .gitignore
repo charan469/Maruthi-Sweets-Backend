@@ -1,3 +1,4 @@
 node_modules/
 package-lock.json
 maruthi-sweets-firebase-adminsdk-fbsvc-d36f81fe23.json
+.env
