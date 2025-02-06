@@ -42,12 +42,12 @@ const getAvailableProducts = async () => {
   return result.rows;
 };
 
-const toggleProductAvailability = async (product_id, show_available) => {
-    console.log("toggleProductAvailability----------------->", product_id, show_available);
+const toggleProductAvailability = async (product_id, newStatus) => {
+    console.log("toggleProductAvailability----------------->", product_id, newStatus);
   const query = `
     UPDATE products SET show_available = $1 WHERE product_id = $2 RETURNING *
   `;
-  const values = [!show_available, product_id];
+  const values = [newStatus, product_id];
   const result = await client.query(query, values);
   return result.rows[0];
 }

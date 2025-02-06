@@ -49,8 +49,8 @@ const changeProductAvailability = async (req, res) => {
     try {
       //  const { product_id } = req.params;
       console.log("req.body----------------", req.body);
-  const { product_id, show_available } = req.body;
-      const product = await toggleProductAvailability(product_id, show_available);
+  const { product_id, newStatus } = req.body;
+      const product = await toggleProductAvailability(product_id, newStatus);
     //   res.setHeader("Cache-Control", "no-store");
       res.status(200).json({ message: "Product updated successfully", product });
     } catch (error) {
