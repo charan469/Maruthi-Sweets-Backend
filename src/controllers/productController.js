@@ -1,3 +1,4 @@
+require("dotenv").config();
 const {
   createProduct,
   getAllProducts,
@@ -5,6 +6,16 @@ const {
   toggleProductAvailability,
 } = require("../models/productModel");
 const client = require("../config/db");
+const { DeleteObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+
+// Configure AWS S3 Client (v3)
+ const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
 const uploadProductImage = async (req, res) => {
   console.log("📸 Image upload request received");
@@ -92,8 +103,25 @@ const changeProductAvailability = async (req, res) => {
 
 const deleteProduct = async (req, res) => {
   try {
-    const { product_id } = req.body;
+    const { product_id, product_image_url } = req.body;
     console.log("🗑️ Deleting product:", product_id);
+
+    if (product_image_url) {
+      // Extract the S3 object key from the image URL
+      const imageKey = product_image_url.split(".amazonaws.com/")[1];
+
+      if (imageKey) {
+        console.log("🗑️ Deleting image from S3:", imageKey);
+        const deleteParams = {
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: imageKey,
+        };
+
+        await s3.send(new DeleteObjectCommand(deleteParams));
+        console.log("✅ Image deleted from S3 successfully.");
+      }
+    }
+
 
     const query = `DELETE FROM products WHERE product_id = $1 RETURNING *`;
     const result = await client.query(query, [product_id]);
