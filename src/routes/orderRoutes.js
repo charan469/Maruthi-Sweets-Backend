@@ -16,7 +16,11 @@ const {
 } = require("../controllers/productController");
 
 const upload = require("../config/s3upload");
+const { saveSellerToken } = require("../controllers/sellerController");
 const router = express.Router();
+
+//Seller fcm Token
+router.post("/save-seller-fcm", saveSellerToken);
 
 // Orders Routes
 router.post("/orders", createNewOrder);
